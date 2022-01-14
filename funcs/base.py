@@ -479,7 +479,7 @@ def simulator(N=1000, EI_ratio=0.2,
 
 def sbi_simulator(params):
     """
-    Wrapper function to run run simulator() is sbi-compatible manner
+    Wrapper function to run run simulator() in sbi-compatible manner
     
     Input:
     
@@ -566,6 +566,8 @@ def rewiring_dynamics(N=1000, EI_ratio=0.2,
         firing rates of excitatory neurons in the shape [[baseline], [EE], [EI], [IE], [II]]
     in_fr: list of lists
         firing rates of inhibitory neurons in the shape [[baseline], [EE], [EI], [IE], [II]]
+    weights: list of lists
+        connection weight matrices
     stats: torch.tensor
         tensor of calculated stats in the shape [[ex_fr_mean, ex_fr_var, in_fr_mean, in_fr_var, ex_CV, in_CV, ex_kd, in_kd]]
     
@@ -590,6 +592,9 @@ def rewiring_dynamics(N=1000, EI_ratio=0.2,
     eqs_neurons='''
     dv/dt = (-(v - vr) + H + 6.5*randn()*mV)/tau_m: volt (unless refractory)
     H: volt'''
+    
+    #Initialise weight list for later use
+    weights = []
     
     ##########################
     # Initialize neuron groups
@@ -660,6 +665,9 @@ def rewiring_dynamics(N=1000, EI_ratio=0.2,
     #calculate stats; only done once bc. runtime
     stats = calc_stats([[i_e, t_e, i_i, t_i]], simtime)
 
+    #append weight lists
+    weights.append([m1, m2, m3, m4])
+    
     #Change E -> E connections, n = 1
     m1 = get_con_matrix(NE, NE, ee_p, ee_mi, ee_var, connectivity_type=connectivity_type)
     S_ee.w = m1
@@ -673,7 +681,9 @@ def rewiring_dynamics(N=1000, EI_ratio=0.2,
 
     ex_fr.append(get_fr(i_e, t_e, 1, simtime))
     in_fr.append(get_fr(i_i, t_i, 1, simtime))
-
+    
+    weights.append([m1, m2, m3, m4])
+    
     #Change E -> I connections, n = 2
     m2 = get_con_matrix(NE, NI, ei_p, ei_mi, ei_var, connectivity_type=connectivity_type)
     S_ei.w = m2
@@ -688,6 +698,8 @@ def rewiring_dynamics(N=1000, EI_ratio=0.2,
     ex_fr.append(get_fr(i_e, t_e, 2, simtime))
     in_fr.append(get_fr(i_i, t_i, 2, simtime))
 
+    weights.append([m1, m2, m3, m4])
+    
     #Change I -> E connections, n = 3
     m3 = get_con_matrix(NI, NE, ie_p, ie_mi, ie_var, connectivity_type=connectivity_type)
     S_ie.w = m3
@@ -702,6 +714,8 @@ def rewiring_dynamics(N=1000, EI_ratio=0.2,
     ex_fr.append(get_fr(i_e, t_e, 3, simtime))
     in_fr.append(get_fr(i_i, t_i, 3, simtime))
     
+    weights.append([m1, m2, m3, m4])
+
     #Change I -> I connections, n = 4
     m4 = get_con_matrix(NI, NI, ii_p, ii_mi, ii_var, connectivity_type=connectivity_type)
     S_ii.w = m4
@@ -716,4 +730,6 @@ def rewiring_dynamics(N=1000, EI_ratio=0.2,
     ex_fr.append(get_fr(i_e, t_e, 4, simtime))
     in_fr.append(get_fr(i_i, t_i, 4, simtime))
     
-    return ex_fr, in_fr, stats
+    weights.append([m1, m2, m3, m4])
+    
+    return ex_fr, in_fr, weights, stats
