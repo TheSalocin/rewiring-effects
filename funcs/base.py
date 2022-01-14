@@ -1,16 +1,12 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[2]:
-
-
 #necessary for basic network
 import torch
 from brian2 import *
 
 #necessary for summary statistics
 import numpy as np
-import scipy.special as scsp
 
 #For getting connection weights
 def get_con_matrix(N_pre, N_post, p, mean, var, connectivity_type = "lognormal"):
@@ -40,8 +36,8 @@ def get_con_matrix(N_pre, N_post, p, mean, var, connectivity_type = "lognormal")
     
     if connectivity_type == "lognormal":
         #transform true mean and var into mean and var of underlying normal
-        m = 2*log(mean) - 0.5*log(var + mean**2)
-        s =  sqrt(-2*log(mean) + log(var + mean**2))
+        m = 2*np.log(mean) - 0.5*np.log(var + mean**2)
+        s =  np.sqrt(-2*np.log(mean) + np.log(var + mean**2))
         #get weight matrix
         W = np.random.lognormal(mean=m, sigma=s, size=N_pre*N_post)
         
@@ -53,8 +49,13 @@ def get_con_matrix(N_pre, N_post, p, mean, var, connectivity_type = "lognormal")
 
 def analytic_correlation(W_aa_pre, fr_a_pre, W_aa_post, fr_a_post, W_ba_pre, fr_b_pre, W_ba_post, fr_b_post):
     """
-    Calculates the expected correlation according to Mongillo's analytics
-    
+    Calculates the expected correlation according to Mongillo's analytics [1]
+
+    [1] Mongillo, Gianluigi, Simon Rumpel, and Yonatan Loewenstein. 
+    “Inhibitory Connectivity Defines the Realm of Excitatory Plasticity.” 
+    Nature Neuroscience 21,
+    https://doi.org/10.1038/s41593-018-0226-x.
+
     Input:
     
     W_aa_pre: np.array
@@ -120,7 +121,7 @@ def get_fr(spikeindices, spiketimes, it, simtime):
     fr = []
     N_neurons = int(np.max(spikeindices))
     for i in range(N_neurons):
-        fr.append(sum(spiketimes[spikeindices == i] > 1000 + it*simtime/ms) /(simtime/second - 1))
+        fr.extend(np.sum(spiketimes[spikeindices == i] > 1000 + it*simtime/ms) /(simtime/second - 1))
         #TODO: also add check that doesn't go above this simulation (< (it+1)*simtime)
         #TODO: make independent of given simulation time
     return fr
@@ -148,7 +149,7 @@ def calc_CVs(spikeindices, spiketimes):
         #get spiketimes
         relevant_times = spiketimes[spikeindices == i]
         relevant_times = relevant_times[relevant_times > 1000]
-        ISIs = diff(relevant_times)
+        ISIs = np.diff(relevant_times)
         #if neuron spiked twice
         if ISIs.size != 0:
             CV_ISI = np.std(ISIs)/np.mean(ISIs)
@@ -157,7 +158,8 @@ def calc_CVs(spikeindices, spiketimes):
     #if at least one neuron spiked        
     if len(CV_list) != 0:
         return np.mean(CV_list)
-    else: return 0
+    else: 
+        return 0
     
 #Takes a discretized raster plot and transforms it to phases
 def discretise(spikeindices, spiketimes, binsize):
@@ -236,7 +238,8 @@ def interpolate_phase_neuron(n_raster):
         phase[0:tf] = np.random.rand(tf) * 2.0 * np.pi
         return phase
 
-    else: return np.random.rand(nbins) * 2.0 * np.pi
+    else: 
+        return np.random.rand(nbins) * 2.0 * np.pi
 
 #Compute Kuramoto-Daido parameters up to order n
 #@jit
@@ -317,8 +320,8 @@ def calc_stats(x, simtime=5*second):
         #get raster
         raster_ex, _ = discretise(sim_to_consider[0], sim_to_consider[1], 0.1)
         #find phases for each neuron
-        phases_ex = np.zeros(shape(raster_ex))
-        for n_idx in range(shape(phases_ex)[0]):
+        phases_ex = np.zeros(np.shape(raster_ex))
+        for n_idx in range(np.shape(phases_ex)[0]):
             phases_ex[n_idx, :] = interpolate_phase_neuron(raster_ex[n_idx,:])
         #of interest: mean of absolute kuramoto param
         ex_kd = np.mean(np.abs(kd(phases_ex)))
@@ -422,13 +425,13 @@ def simulator(N=1000, EI_ratio=0.2,
 
     #Excitatoy Neurons
     E = NeuronGroup(NE, model=eqs_neurons, threshold='v > theta',
-                          reset='v=vr', refractory=tau_refr, method='euler')
+                          reset='v=vr', refractory=tau_refr, method='euler',delay=0.0*ms)
     E.H = E_H
 
 
     #Inhibitory Neurons
     I = NeuronGroup(NI, model=eqs_neurons, threshold='v > theta',
-                          reset='v=vr', refractory=tau_refr, method='euler')
+                          reset='v=vr', refractory=tau_refr, method='euler',delay=0.0*ms)#
     I.H = I_H
     
     #################
@@ -519,6 +522,7 @@ def rewiring_dynamics(N=1000, EI_ratio=0.2,
                       simtime=5*second, report=None):
     """
     Runs network 5 times with rewiring
+    **** CODE REVIEW: needs refactoring ***
     
     Input:
     
@@ -670,6 +674,7 @@ def rewiring_dynamics(N=1000, EI_ratio=0.2,
     
     #Change E -> E connections, n = 1
     m1 = get_con_matrix(NE, NE, ee_p, ee_mi, ee_var, connectivity_type=connectivity_type)
+    ## ****CODE REVIEW: Add new random seeds every time you call get_con_matrix****
     S_ee.w = m1
 
     run(simtime, report=report)
